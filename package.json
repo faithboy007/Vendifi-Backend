@@ -1,0 +1,42 @@
+{
+  "name": "vendifi-backend",
+  "version": "1.0.0",
+  "description": "VENDIFI Backend API - Airtime, Data, Cable TV, and Electricity services integration with Reloadly and Flutterwave",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "vendifi",
+    "backend",
+    "api",
+    "reloadly",
+    "flutterwave",
+    "airtime",
+    "data",
+    "cable-tv",
+    "electricity",
+    "nigeria"
+  ],
+  "author": "faithboy007",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "firebase-admin": "^12.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/faithboy007/Vendifi-Backend.git"
+  }
+}
+
