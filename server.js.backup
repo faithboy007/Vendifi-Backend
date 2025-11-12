@@ -54,14 +54,6 @@ const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const RELOADLY_CLIENT_ID = process.env.RELOADLY_CLIENT_ID;
 const RELOADLY_CLIENT_SECRET = process.env.RELOADLY_CLIENT_SECRET;
 
-// --- MARKUP CONFIGURATION (Your Profit Margins) ---
-const MARKUP = {
-    airtime: parseFloat(process.env.MARKUP_AIRTIME || '2') / 100,      // 2% default
-    data: parseFloat(process.env.MARKUP_DATA || '5') / 100,           // 5% default
-    cableTV: parseFloat(process.env.MARKUP_CABLE_TV || '3') / 100,     // 3% default
-    electricity: parseFloat(process.env.MARKUP_ELECTRICITY || '2') / 100 // 2% default
-};
-
 // Reloadly API URLs
 const RELOADLY_AUTH_URL = "https://auth.reloadly.com/oauth/token";
 const RELOADLY_TOPUP_URL = "https://topups.reloadly.com/topups";
@@ -182,48 +174,6 @@ async function fetchReloadlyBillers(type) {
 }
 
 /**
- * Applies markup to product prices
- * @param {Object} catalog - Product catalog
- * @returns {Object} Catalog with markup applied
- */
-function applyMarkupToCatalog(catalog) {
-    const catalogWithMarkup = JSON.parse(JSON.stringify(catalog)); // Deep clone
-    
-    // Apply markup to data plans
-    catalogWithMarkup.data = catalogWithMarkup.data.map(plan => {
-        const basePrice = plan.price || 0;
-        return {
-            ...plan,
-            basePrice: basePrice,
-            price: Math.round(basePrice * (1 + MARKUP.data))
-        };
-    });
-    
-    // Apply markup to cable TV
-    catalogWithMarkup.cableTV = catalogWithMarkup.cableTV.map(plan => {
-        const basePrice = plan.price || 0;
-        return {
-            ...plan,
-            basePrice: basePrice,
-            price: Math.round(basePrice * (1 + MARKUP.cableTV))
-        };
-    });
-    
-    // Airtime and electricity use dynamic amounts, so we just add markup info
-    catalogWithMarkup.airtime = catalogWithMarkup.airtime.map(plan => ({
-        ...plan,
-        markupPercentage: Math.round(MARKUP.airtime * 100)
-    }));
-    
-    catalogWithMarkup.electricity = catalogWithMarkup.electricity.map(plan => ({
-        ...plan,
-        markupPercentage: Math.round(MARKUP.electricity * 100)
-    }));
-    
-    return catalogWithMarkup;
-}
-
-/**
  * Matches operator name with network/provider name (fuzzy matching)
  */
 function matchOperatorName(operatorName, searchName) {
@@ -325,8 +275,7 @@ let PRODUCT_CATALOG = {
             planId: 'MTN-1GB-DAILY',
             network: 'MTN',
             name: 'MTN 1GB Daily',
-            basePrice: 300, // Cost from Reloadly
-            price: Math.round(300 * (1 + MARKUP.data)), // Price with markup
+            price: 500, // Price in NGN
             operatorId: 646, // Get from Reloadly dashboard
             service: 'data',
             validity: '1 day'
@@ -914,18 +863,9 @@ let PRODUCT_CATALOG = {
  */
 app.get('/api/get-data-plans', (req, res) => {
     try {
-        // Apply markup to all products before sending to frontend
-        const catalogWithMarkup = applyMarkupToCatalog(PRODUCT_CATALOG);
-        
         res.status(200).json({
             success: true,
-            data: catalogWithMarkup,
-            markup: {
-                airtime: `${Math.round(MARKUP.airtime * 100)}%`,
-                data: `${Math.round(MARKUP.data * 100)}%`,
-                cableTV: `${Math.round(MARKUP.cableTV * 100)}%`,
-                electricity: `${Math.round(MARKUP.electricity * 100)}%`
-            }
+            data: PRODUCT_CATALOG
         });
     } catch (error) {
         console.error("Error fetching product catalog:", error.message);
@@ -1188,7 +1128,7 @@ app.post('/api/process-transaction', async (req, res) => {
         const { meta, amount } = data; // Get product details and amount from Flutterwave
         const accessToken = await getReloadlyAccessToken(); // Get valid auth token
         const formattedPhone = formatPhoneNumber(meta.phone);
-        const customerAmount = amount; // Amount customer paid (with markup)
+        const transactionAmount = amount; // Flutterwave amount is already in main currency (e.g., NGN)
 
         // Find the product in PRODUCT_CATALOG to get the operator ID
         let product = null;
@@ -1224,23 +1164,6 @@ app.post('/api/process-transaction', async (req, res) => {
             });
         }
 
-        // Calculate amount to send to Reloadly (remove markup)
-        let reloadlyAmount;
-        if (meta.service === 'airtime') {
-            // For airtime, remove markup from customer amount
-            reloadlyAmount = Math.round(customerAmount / (1 + MARKUP.airtime));
-        } else if (meta.service === 'data' || meta.service === 'cableTV') {
-            // For data and cable TV, use base price from product
-            reloadlyAmount = product.price; // This is the base price before markup
-        } else if (meta.service === 'electricity') {
-            // For electricity, remove markup from customer amount
-            reloadlyAmount = Math.round(customerAmount / (1 + MARKUP.electricity));
-        } else {
-            reloadlyAmount = customerAmount;
-        }
-
-        console.log(`Customer paid: ₦${customerAmount}, Sending to Reloadly: ₦${reloadlyAmount}, Your profit: ₦${customerAmount - reloadlyAmount}`);
-
         let reloadlyRequestConfig = {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -1252,12 +1175,12 @@ app.post('/api/process-transaction', async (req, res) => {
         // This is now a SINGLE, unified call for both Airtime and Data
         const reloadlyResponse = await axios.post(RELOADLY_TOPUP_URL, {
             operatorId: operatorId,         // The specific operatorId for the product
-            amount: reloadlyAmount,         // Amount without markup (your cost)
+            amount: transactionAmount,      // The amount (for airtime) or exact price (for data bundle)
             recipientPhone: {
                 countryCode: "NG",          // Hardcode for Nigeria
                 number: formattedPhone.substring(4) // Send number without the +234
             },
-            customIdentifier: reference // Link to Flutterwave reference
+            customIdentifier: reference // Link to Paystack reference
         }, reloadlyRequestConfig);
         
         console.log('Reloadly Response:', reloadlyResponse.data);
