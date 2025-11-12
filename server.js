@@ -917,15 +917,17 @@ app.get('/api/get-data-plans', (req, res) => {
         // Apply markup to all products before sending to frontend
         const catalogWithMarkup = applyMarkupToCatalog(PRODUCT_CATALOG);
         
+        // Remove base prices and markup info from customer-facing response
+        const cleanCatalog = {
+            airtime: catalogWithMarkup.airtime.map(({ basePrice, markupPercentage, ...product }) => product),
+            data: catalogWithMarkup.data.map(({ basePrice, ...product }) => product),
+            cableTV: catalogWithMarkup.cableTV.map(({ basePrice, ...product }) => product),
+            electricity: catalogWithMarkup.electricity.map(({ basePrice, markupPercentage, ...product }) => product)
+        };
+        
         res.status(200).json({
             success: true,
-            data: catalogWithMarkup,
-            markup: {
-                airtime: `${Math.round(MARKUP.airtime * 100)}%`,
-                data: `${Math.round(MARKUP.data * 100)}%`,
-                cableTV: `${Math.round(MARKUP.cableTV * 100)}%`,
-                electricity: `${Math.round(MARKUP.electricity * 100)}%`
-            }
+            data: cleanCatalog
         });
     } catch (error) {
         console.error("Error fetching product catalog:", error.message);
@@ -1239,7 +1241,9 @@ app.post('/api/process-transaction', async (req, res) => {
             reloadlyAmount = customerAmount;
         }
 
-        console.log(`Customer paid: ₦${customerAmount}, Sending to Reloadly: ₦${reloadlyAmount}, Your profit: ₦${customerAmount - reloadlyAmount}`);
+        // Internal profit tracking (not visible to customers)
+        const profit = customerAmount - reloadlyAmount;
+        console.log(`💰 PROFIT: Customer paid ₦${customerAmount} → Reloadly cost ₦${reloadlyAmount} → Your profit ₦${profit} (${meta.service})`);
 
         let reloadlyRequestConfig = {
             headers: {
