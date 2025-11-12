@@ -10,6 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- FIREBASE INITIALIZATION ---
+let db = null;
+let auth = null;
+let firebaseInitialized = false;
+
 // Validate Firebase credentials before initializing
 if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
     console.error('\n⚠️  WARNING: Firebase credentials are missing!');
@@ -17,26 +21,29 @@ if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !pr
     console.error('  - FIREBASE_PROJECT_ID');
     console.error('  - FIREBASE_PRIVATE_KEY');
     console.error('  - FIREBASE_CLIENT_EMAIL');
-    console.error('\nAuthentication endpoints will not work until these are configured.\n');
+    console.error('\nAuthentication endpoints will not work until these are configured.');
+    console.error('Other endpoints (products, transactions) will still work.\n');
+} else {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+            })
+        });
+        
+        db = admin.firestore();
+        auth = admin.auth();
+        firebaseInitialized = true;
+        console.log('✓ Firebase initialized successfully');
+    } catch (error) {
+        console.error('✗ Firebase initialization failed:', error.message);
+        console.error('\nPlease check your Firebase environment variables.');
+        console.error('Make sure FIREBASE_PRIVATE_KEY includes the \\n characters for line breaks.');
+        console.error('Authentication endpoints will not work.\n');
+    }
 }
-
-try {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-        })
-    });
-    console.log('✓ Firebase initialized successfully');
-} catch (error) {
-    console.error('✗ Firebase initialization failed:', error.message);
-    console.error('\nPlease check your Firebase environment variables.');
-    console.error('Make sure FIREBASE_PRIVATE_KEY includes the \\n characters for line breaks.\n');
-}
-
-const db = admin.firestore();
-const auth = admin.auth();
 
 // --- MIDDLEWARE ---
 app.use(cors()); // Enable Cross-Origin Resource Sharing for your frontend
@@ -1207,6 +1214,14 @@ app.post('/api/process-transaction', async (req, res) => {
  * The actual email/password verification happens on the client using Firebase SDK.
  */
 app.post('/api/auth/verify-token', async (req, res) => {
+    // Check if Firebase is initialized
+    if (!firebaseInitialized) {
+        return res.status(503).json({
+            success: false,
+            message: "Authentication service unavailable. Firebase credentials not configured."
+        });
+    }
+
     const { idToken } = req.body;
 
     if (!idToken) {
@@ -1272,6 +1287,14 @@ app.post('/api/auth/verify-token', async (req, res) => {
  * The user can then login from the frontend using Firebase SDK.
  */
 app.post('/api/auth/register', async (req, res) => {
+    // Check if Firebase is initialized
+    if (!firebaseInitialized) {
+        return res.status(503).json({
+            success: false,
+            message: "Authentication service unavailable. Firebase credentials not configured."
+        });
+    }
+
     const { email, password, displayName, phoneNumber } = req.body;
 
     if (!email || !password) {
@@ -1350,6 +1373,7 @@ app.get('/api/auth/info', (req, res) => {
     res.status(200).json({
         success: true,
         message: "VENDIFI Authentication Guide",
+        firebaseStatus: firebaseInitialized ? "✓ Configured" : "✗ Not Configured - Add Firebase credentials to environment variables",
         authentication: {
             description: "Users login with email and password through Firebase",
             flow: [
