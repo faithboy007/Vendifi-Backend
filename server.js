@@ -914,20 +914,11 @@ let PRODUCT_CATALOG = {
  */
 app.get('/api/get-data-plans', (req, res) => {
     try {
-        // Apply markup to all products before sending to frontend
-        const catalogWithMarkup = applyMarkupToCatalog(PRODUCT_CATALOG);
-        
-        // Remove base prices and markup info from customer-facing response
-        const cleanCatalog = {
-            airtime: catalogWithMarkup.airtime.map(({ basePrice, markupPercentage, ...product }) => product),
-            data: catalogWithMarkup.data.map(({ basePrice, ...product }) => product),
-            cableTV: catalogWithMarkup.cableTV.map(({ basePrice, ...product }) => product),
-            electricity: catalogWithMarkup.electricity.map(({ basePrice, markupPercentage, ...product }) => product)
-        };
-        
+        // Return products with ONLY base prices visible to customers
+        // The actual charge (with markup) happens during payment
         res.status(200).json({
             success: true,
-            data: cleanCatalog
+            data: PRODUCT_CATALOG
         });
     } catch (error) {
         console.error("Error fetching product catalog:", error.message);
