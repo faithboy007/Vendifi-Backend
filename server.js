@@ -10,13 +10,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- FIREBASE INITIALIZATION ---
-admin.initializeApp({
-    credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-    })
-});
+// Validate Firebase credentials before initializing
+if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
+    console.error('\n⚠️  WARNING: Firebase credentials are missing!');
+    console.error('Required environment variables:');
+    console.error('  - FIREBASE_PROJECT_ID');
+    console.error('  - FIREBASE_PRIVATE_KEY');
+    console.error('  - FIREBASE_CLIENT_EMAIL');
+    console.error('\nAuthentication endpoints will not work until these are configured.\n');
+}
+
+try {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+        })
+    });
+    console.log('✓ Firebase initialized successfully');
+} catch (error) {
+    console.error('✗ Firebase initialization failed:', error.message);
+    console.error('\nPlease check your Firebase environment variables.');
+    console.error('Make sure FIREBASE_PRIVATE_KEY includes the \\n characters for line breaks.\n');
+}
 
 const db = admin.firestore();
 const auth = admin.auth();
