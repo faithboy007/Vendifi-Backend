@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Synced operator IDs (generated at runtime)
+operator-ids.json
+
 # Dependencies
 node_modules/
 package-lock.json

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VENDIFI - Login Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 400px;
+            width: 100%;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: #5568d3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .toggle-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            cursor: pointer;
+        }
+        .user-info {
+            display: none;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .user-info h3 {
+            margin-bottom: 10px;
+        }
+        .user-info p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 id="form-title">Login to VENDIFI</h2>
+        <p class="subtitle">Enter your email and password</p>
+        
+        <div class="message" id="message"></div>
+
+        <!-- Login/Register Form -->
+        <form id="auth-form">
+            <div class="form-group" id="name-group" style="display: none;">
+                <label for="displayName">Full Name</label>
+                <input type="text" id="displayName" placeholder="John Doe">
+            </div>
+
+            <div class="form-group" id="phone-group" style="display: none;">
+                <label for="phoneNumber">Phone Number (Optional)</label>
+                <input type="tel" id="phoneNumber" placeholder="+2348012345678">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="user@example.com" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="btn" id="submit-btn">Login</button>
+        </form>
+
+        <p class="toggle-link" id="toggle-link">
+            Don't have an account? <strong>Register</strong>
+        </p>
+
+        <!-- User Info (shown after login) -->
+        <div class="user-info" id="user-info">
+            <h3>✅ Logged In Successfully!</h3>
+            <p><strong>Email:</strong> <span id="user-email"></span></p>
+            <p><strong>Name:</strong> <span id="user-name"></span></p>
+            <p><strong>UID:</strong> <span id="user-uid"></span></p>
+            <button class="btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <script>
+        // ===================================
+        // FIREBASE CONFIGURATION
+        // ===================================
+        // TODO: Replace with your Firebase config from Firebase Console
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // ===================================
+        // BACKEND API URL
+        // ===================================
+        const API_URL = "http://localhost:3000";
+
+        // ===================================
+        // UI ELEMENTS
+        // ===================================
+        const form = document.getElementById('auth-form');
+        const formTitle = document.getElementById('form-title');
+        const toggleLink = document.getElementById('toggle-link');
+        const submitBtn = document.getElementById('submit-btn');
+        const message = document.getElementById('message');
+        const nameGroup = document.getElementById('name-group');
+        const phoneGroup = document.getElementById('phone-group');
+        const userInfo = document.getElementById('user-info');
+
+        let isLoginMode = true;
+
+        // ===================================
+        // TOGGLE BETWEEN LOGIN AND REGISTER
+        // ===================================
+        toggleLink.addEventListener('click', () => {
+            isLoginMode = !isLoginMode;
+            if (isLoginMode) {
+                formTitle.textContent = 'Login to VENDIFI';
+                submitBtn.textContent = 'Login';
+                toggleLink.innerHTML = "Don't have an account? <strong>Register</strong>";
+                nameGroup.style.display = 'none';
+                phoneGroup.style.display = 'none';
+            } else {
+                formTitle.textContent = 'Register for VENDIFI';
+                submitBtn.textContent = 'Register';
+                toggleLink.innerHTML = "Already have an account? <strong>Login</strong>";
+                nameGroup.style.display = 'block';
+                phoneGroup.style.display = 'block';
+            }
+            hideMessage();
+        });
+
+        // ===================================
+        // FORM SUBMISSION
+        // ===================================
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const displayName = document.getElementById('displayName').value;
+            const phoneNumber = document.getElementById('phoneNumber').value;
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                if (isLoginMode) {
+                    // ===================================
+                    // LOGIN FLOW
+                    // ===================================
+                    await loginUser(email, password);
+                } else {
+                    // ===================================
+                    // REGISTER FLOW
+                    // ===================================
+                    await registerUser(email, password, displayName, phoneNumber);
+                }
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = isLoginMode ? 'Login' : 'Register';
+            }
+        });
+
+        // ===================================
+        // REGISTER USER
+        // ===================================
+        async function registerUser(email, password, displayName, phoneNumber) {
+            try {
+                // Call backend to register user
+                const response = await fetch(`${API_URL}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, displayName, phoneNumber })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('Registration successful! Please login.', 'success');
+                    // Auto-switch to login mode
+                    setTimeout(() => {
+                        toggleLink.click();
+                        document.getElementById('email').value = email;
+                    }, 2000);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                throw new Error('Registration failed: ' + error.message);
+            }
+        }
+
+        // ===================================
+        // LOGIN USER (EMAIL + PASSWORD)
+        // ===================================
+        async function loginUser(email, password) {
+            try {
+                // STEP 1: Firebase Authentication (Client-Side)
+                // This is where email and password are verified
+                console.log('Step 1: Authenticating with Firebase...');
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+
+                // STEP 2: Get Firebase ID Token
+                console.log('Step 2: Getting ID token...');
+                const idToken = await user.getIdToken();
+
+                // STEP 3: Verify token with backend
+                console.log('Step 3: Verifying with backend...');
+                const response = await fetch(`${API_URL}/api/auth/verify-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Login successful!
+                    showMessage('Login successful!', 'success');
+                    displayUserInfo(data.user);
+                    
+                    // Store token for future API calls
+                    localStorage.setItem('userToken', idToken);
+                    localStorage.setItem('userData', JSON.stringify(data.user));
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                if (error.code === 'auth/wrong-password') {
+                    throw new Error('Incorrect password. Please try again.');
+                } else if (error.code === 'auth/user-not-found') {
+                    throw new Error('No account found with this email.');
+                } else if (error.code === 'auth/invalid-email') {
+                    throw new Error('Invalid email address.');
+                } else {
+                    throw new Error('Login failed: ' + error.message);
+                }
+            }
+        }
+
+        // ===================================
+        // DISPLAY USER INFO
+        // ===================================
+        function displayUserInfo(user) {
+            document.getElementById('user-email').textContent = user.email;
+            document.getElementById('user-name').textContent = user.displayName || 'Not set';
+            document.getElementById('user-uid').textContent = user.uid;
+            
+            form.style.display = 'none';
+            toggleLink.style.display = 'none';
+            userInfo.style.display = 'block';
+        }
+
+        // ===================================
+        // LOGOUT
+        // ===================================
+        async function logout() {
+            await auth.signOut();
+            localStorage.removeItem('userToken');
+            localStorage.removeItem('userData');
+            
+            form.style.display = 'block';
+            toggleLink.style.display = 'block';
+            userInfo.style.display = 'none';
+            
+            form.reset();
+            showMessage('Logged out successfully', 'success');
+        }
+
+        // ===================================
+        // SHOW MESSAGE
+        // ===================================
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+        }
+
+        function hideMessage() {
+            message.style.display = 'none';
+        }
+
+        // ===================================
+        // CHECK IF USER IS ALREADY LOGGED IN
+        // ===================================
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                const idToken = await user.getIdToken();
+                const response = await fetch(`${API_URL}/api/auth/verify-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    displayUserInfo(data.user);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

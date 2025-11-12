@@ -182,8 +182,42 @@ function matchOperatorName(operatorName, searchName) {
 }
 
 // --- PRODUCT CATALOG ---
-// This is the SINGLE SOURCE OF TRUTH for all products.
-// Add or edit products ONLY here.
+/**
+ * PRODUCT_CATALOG - Single Source of Truth for All Services
+ * 
+ * This catalog contains all products available through the VENDIFI platform.
+ * Each product has an operatorId that corresponds to Reloadly's API.
+ * 
+ * IMPORTANT: The operatorId values (340, 646, etc.) are PLACEHOLDERS!
+ * 
+ * HOW TO CONFIGURE OPERATOR IDs:
+ * ================================
+ * Option 1 (Automatic - RECOMMENDED):
+ * 1. Start your server: npm start
+ * 2. Call GET /api/sync-operator-ids
+ *    This fetches real operator IDs from Reloadly and matches them with your products
+ * 3. Review the matchedIds in the response
+ * 4. Call POST /api/update-operator-ids with the matchedIds to update this catalog
+ * 
+ * Option 2 (Manual):
+ * 1. Login to your Reloadly Dashboard (https://www.reloadly.com)
+ * 2. Navigate to the API section
+ * 3. Find the operatorId for each service you want to offer
+ * 4. Replace the placeholder IDs in this catalog with real IDs
+ * 5. Restart your server
+ * 
+ * STRUCTURE:
+ * - airtime: Voice calling credit for mobile networks
+ * - data: Internet data bundles for mobile networks
+ * - cableTV: Subscription packages for cable TV providers
+ * - electricity: Prepaid/Postpaid electricity billing
+ * 
+ * Each product must have:
+ * - operatorId: Unique ID from Reloadly (required for API calls)
+ * - Identifying fields: network/provider/disco/planId
+ * - price: Amount in NGN (for fixed-price products)
+ * - service: Category identifier
+ */
 let PRODUCT_CATALOG = {
     airtime: [
         {
@@ -1072,46 +1106,39 @@ app.post('/api/process-transaction', async (req, res) => {
         const formattedPhone = formatPhoneNumber(meta.phone);
         const transactionAmount = amount; // Flutterwave amount is already in main currency (e.g., NGN)
 
-        // --- NEW LOGIC: OPERATOR ID MAPPING ---
-        // This is the most important part you need to configure.
-        // You must log in to your Reloadly dashboard, find the 'operatorId' (or SKU)
-        // for EACH airtime network and EACH data bundle you sell, and put them here.
-        const reloadlyOperatorIdMap = {
-            // --- Airtime Products (service: 'airtime') ---
-            // Use the 'network' value from the frontend
-            'airtime-MTN': 340,     // EXAMPLE: Replace 340 with your Reloadly operatorId for MTN Airtime
-            'airtime-GLO': 341,     // EXAMPLE: Replace 341 with your Reloadly operatorId for GLO Airtime
-            'airtime-AIRTEL': 342,  // EXAMPLE: Replace 342 with your Reloadly operatorId for Airtel Airtime
-            'airtime-9MOBILE': 343, // EXAMPLE: Replace 343 with your Reloadly operatorId for 9mobile Airtime
+        // Find the product in PRODUCT_CATALOG to get the operator ID
+        let product = null;
+        let operatorId = null;
 
-            // --- Data Products (service: 'data') ---
-            // Use the 'planId' value from the frontend (from script.js dataPlans)
-            'MTN-500': 646,     // EXAMPLE: Replace 646 with your Reloadly operatorId for this specific MTN data plan
-            'MTN-1000': 647,    // EXAMPLE: Replace 647 with...
-            'GLO-500': 648,     // EXAMPLE: ...and so on for all plans
-            'GLO-1000': 649,
-            'AIRTEL-500': 650,
-            'AIRTEL-1000': 651,
-            '9MOBILE-500': 652,
-            '9MOBILE-1000': 653,
-        };
-
-        // Find the correct operatorId based on the service type
-        let lookupKey;
         if (meta.service === 'airtime') {
-            lookupKey = `airtime-${meta.network}`;
+            product = PRODUCT_CATALOG.airtime.find(p => p.network === meta.network);
         } else if (meta.service === 'data') {
-            lookupKey = meta.planId;
+            product = PRODUCT_CATALOG.data.find(p => p.planId === meta.planId);
+        } else if (meta.service === 'cableTV') {
+            product = PRODUCT_CATALOG.cableTV.find(p => p.planId === meta.planId);
+        } else if (meta.service === 'electricity') {
+            product = PRODUCT_CATALOG.electricity.find(p => p.planId === meta.planId);
         }
 
-        const operatorId = reloadlyOperatorIdMap[lookupKey];
-        
-        if (!operatorId) {
-            console.error(`Configuration Error: No operatorId found for lookupKey: ${lookupKey}`);
-            return res.status(400).json({ success: false, message: `This product (${lookupKey}) is not configured.` });
+        if (!product) {
+            console.error(`Configuration Error: Product not found in catalog. Service: ${meta.service}, Identifier: ${meta.planId || meta.network}`);
+            return res.status(400).json({ 
+                success: false, 
+                message: `Product not found in catalog. Please contact support.` 
+            });
         }
 
-        // --- END OF NEW LOGIC ---
+        operatorId = product.operatorId;
+
+        // Validate operator ID is configured (not a placeholder)
+        if (!operatorId || operatorId < 1) {
+            console.error(`Configuration Error: Operator ID not configured for product: ${product.name}`);
+            console.error(`Please run /api/sync-operator-ids to fetch and update operator IDs from Reloadly.`);
+            return res.status(500).json({ 
+                success: false, 
+                message: `This product is not yet configured. Please contact support to enable this service.` 
+            });
+        }
 
         let reloadlyRequestConfig = {
             headers: {
@@ -1155,35 +1182,203 @@ app.post('/api/process-transaction', async (req, res) => {
 
 
 /**
- * @route   POST /api/login
- * @desc    Authenticate user with Firebase and return a custom token
+ * @route   POST /api/auth/verify-token
+ * @desc    Verify Firebase ID token and return user info
  * @access  Public
+ * 
+ * This endpoint verifies the Firebase ID token from client-side authentication.
+ * The actual email/password verification happens on the client using Firebase SDK.
  */
-app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
+app.post('/api/auth/verify-token', async (req, res) => {
+    const { idToken } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: "Email and password are required." });
+    if (!idToken) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Firebase ID token is required." 
+        });
     }
 
     try {
-        // Find user by email
-        const userRecord = await auth.getUserByEmail(email);
+        // Verify the ID token from Firebase client authentication
+        const decodedToken = await auth.verifyIdToken(idToken);
+        const uid = decodedToken.uid;
         
-        // Create a custom token (client will use this to sign in)
-        const customToken = await auth.createCustomToken(userRecord.uid);
+        // Get user details from Firestore
+        const userRecord = await auth.getUser(uid);
+        const userDoc = await db.collection('users').doc(uid).get();
+        const userData = userDoc.exists ? userDoc.data() : {};
 
         res.status(200).json({ 
             success: true, 
-            message: "Login successful.", 
-            token: customToken,
-            uid: userRecord.uid 
+            message: "Authentication verified successfully.", 
+            user: {
+                uid: userRecord.uid,
+                email: userRecord.email,
+                displayName: userRecord.displayName || userData.displayName || null,
+                phoneNumber: userRecord.phoneNumber || userData.phoneNumber || null,
+                emailVerified: userRecord.emailVerified,
+                ...userData
+            }
         });
 
     } catch (error) {
-        console.error("Login error:", error.message);
-        res.status(401).json({ success: false, message: "Invalid email or password." });
+        console.error("Token verification error:", error.message);
+        
+        if (error.code === 'auth/id-token-expired') {
+            return res.status(401).json({ 
+                success: false, 
+                message: "Token expired. Please login again." 
+            });
+        }
+        
+        if (error.code === 'auth/invalid-id-token') {
+            return res.status(401).json({ 
+                success: false, 
+                message: "Invalid authentication token." 
+            });
+        }
+        
+        res.status(401).json({ 
+            success: false, 
+            message: "Authentication failed. Please try again." 
+        });
     }
+});
+
+/**
+ * @route   POST /api/auth/register
+ * @desc    Register a new user with email and password
+ * @access  Public
+ * 
+ * This creates a user in Firebase Authentication.
+ * The user can then login from the frontend using Firebase SDK.
+ */
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password, displayName, phoneNumber } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Email and password are required." 
+        });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Password must be at least 6 characters." 
+        });
+    }
+
+    try {
+        // Create user in Firebase Authentication
+        const userRecord = await auth.createUser({
+            email: email,
+            password: password,
+            displayName: displayName || null,
+            phoneNumber: phoneNumber || null
+        });
+
+        // Store additional user data in Firestore
+        await db.collection('users').doc(userRecord.uid).set({
+            email: email,
+            displayName: displayName || null,
+            phoneNumber: phoneNumber || null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            balance: 0,
+            transactions: []
+        });
+
+        res.status(201).json({ 
+            success: true, 
+            message: "User registered successfully. You can now login.",
+            user: {
+                uid: userRecord.uid,
+                email: userRecord.email,
+                displayName: userRecord.displayName
+            }
+        });
+
+    } catch (error) {
+        console.error("Registration error:", error.message);
+        
+        if (error.code === 'auth/email-already-exists') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Email already registered. Please login instead." 
+            });
+        }
+        
+        if (error.code === 'auth/invalid-email') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Invalid email address." 
+            });
+        }
+        
+        res.status(500).json({ 
+            success: false, 
+            message: "Registration failed. Please try again." 
+        });
+    }
+});
+
+/**
+ * @route   GET /api/auth/info
+ * @desc    Get authentication flow information
+ * @access  Public
+ */
+app.get('/api/auth/info', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "VENDIFI Authentication Guide",
+        authentication: {
+            description: "Users login with email and password through Firebase",
+            flow: [
+                "1. User enters email and password in your app",
+                "2. Frontend calls Firebase SDK: firebase.auth().signInWithEmailAndPassword(email, password)",
+                "3. Firebase returns ID token on success",
+                "4. Frontend sends ID token to backend /api/auth/verify-token",
+                "5. Backend verifies token and returns user data"
+            ],
+            why_this_approach: [
+                "✓ Passwords never sent to your backend (more secure)",
+                "✓ Firebase handles password hashing and security",
+                "✓ Built-in password reset and email verification",
+                "✓ Protection against brute force attacks",
+                "✓ Industry standard authentication"
+            ]
+        },
+        endpoints: {
+            register: {
+                method: "POST",
+                url: "/api/auth/register",
+                body: {
+                    email: "user@example.com",
+                    password: "password123",
+                    displayName: "John Doe (optional)",
+                    phoneNumber: "+2348012345678 (optional)"
+                }
+            },
+            login_frontend: {
+                method: "CLIENT SDK",
+                description: "Use Firebase SDK on frontend",
+                code: "firebase.auth().signInWithEmailAndPassword(email, password)"
+            },
+            verify_token: {
+                method: "POST",
+                url: "/api/auth/verify-token",
+                body: {
+                    idToken: "firebase-id-token-from-frontend"
+                }
+            }
+        },
+        frontend_example: {
+            html: "See documentation for complete frontend implementation",
+            javascript: "Available in README.md"
+        }
+    });
 });
 
 
@@ -1227,16 +1422,195 @@ app.post('/api/check-status', async (req, res) => {
 });
 
 
-// --- START SERVER ---
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-    if (!FLUTTERWAVE_SECRET_KEY || !RELOADLY_CLIENT_ID || !RELOADLY_CLIENT_SECRET) {
-        console.warn("\nWARNING: One or more environment variables (API keys) are missing.");
-        console.warn("Please create a '.env' file and add your secret keys for Flutterwave and Reloadly.\n");
-    } else {
-        // Fetch the token on startup
-        getReloadlyAccessToken();
+// --- ENVIRONMENT VALIDATION ---
+/**
+ * Validates all required environment variables are present
+ * @returns {Object} validation result with missing variables
+ */
+function validateEnvironment() {
+    const requiredVars = {
+        'FLUTTERWAVE_SECRET_KEY': FLUTTERWAVE_SECRET_KEY,
+        'RELOADLY_CLIENT_ID': RELOADLY_CLIENT_ID,
+        'RELOADLY_CLIENT_SECRET': RELOADLY_CLIENT_SECRET,
+        'FIREBASE_PROJECT_ID': process.env.FIREBASE_PROJECT_ID,
+        'FIREBASE_PRIVATE_KEY': process.env.FIREBASE_PRIVATE_KEY,
+        'FIREBASE_CLIENT_EMAIL': process.env.FIREBASE_CLIENT_EMAIL
+    };
+
+    const missing = [];
+    const present = [];
+
+    for (const [key, value] of Object.entries(requiredVars)) {
+        if (!value || value.trim() === '') {
+            missing.push(key);
+        } else {
+            present.push(key);
+        }
     }
+
+    return { missing, present, isValid: missing.length === 0 };
+}
+
+// --- START SERVER ---
+app.listen(PORT, async () => {
+    console.log('\n========================================');
+    console.log('   VENDIFI BACKEND API SERVER');
+    console.log('========================================');
+    console.log(`✓ Server is running on http://localhost:${PORT}`);
+    console.log(`✓ Node version: ${process.version}`);
+    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Validate environment variables
+    console.log('\n--- Environment Variables Check ---');
+    const validation = validateEnvironment();
+    
+    if (validation.isValid) {
+        console.log('✓ All required environment variables are configured');
+        validation.present.forEach(key => {
+            console.log(`  ✓ ${key}`);
+        });
+        
+        // Fetch Reloadly token on startup
+        console.log('\n--- Reloadly Authentication ---');
+        try {
+            await getReloadlyAccessToken();
+            console.log('✓ Reloadly authentication successful');
+        } catch (error) {
+            console.error('✗ Reloadly authentication failed:', error.message);
+            console.error('  Please check your RELOADLY_CLIENT_ID and RELOADLY_CLIENT_SECRET');
+        }
+    } else {
+        console.warn('\n⚠ WARNING: Missing required environment variables:');
+        validation.missing.forEach(key => {
+            console.warn(`  ✗ ${key}`);
+        });
+        console.warn('\nPlease configure your .env file with the missing variables.');
+        console.warn('See .env.example for the required format.\n');
+    }
+    
+    // Check operator IDs configuration
+    console.log('\n--- Product Configuration Check ---');
+    const unconfiguredProducts = [];
+    
+    ['airtime', 'data', 'cableTV', 'electricity'].forEach(category => {
+        const products = PRODUCT_CATALOG[category] || [];
+        const unconfigured = products.filter(p => !p.operatorId || p.operatorId < 1);
+        if (unconfigured.length > 0) {
+            unconfiguredProducts.push({ category, count: unconfigured.length, total: products.length });
+        }
+    });
+    
+    if (unconfiguredProducts.length > 0 && validation.isValid) {
+        console.warn('⚠ WARNING: Some products have placeholder operator IDs:');
+        unconfiguredProducts.forEach(({ category, count, total }) => {
+            console.warn(`  ✗ ${category}: ${count}/${total} products need configuration`);
+        });
+        console.warn('\n  🔄 Attempting automatic operator ID sync...');
+        
+        try {
+            // Automatically sync operator IDs
+            const [operators, cableTVBillers, electricityBillers] = await Promise.all([
+                fetchReloadlyOperators(),
+                fetchReloadlyBillers('CABLE_TV'),
+                fetchReloadlyBillers('ELECTRICITY_BILL_PAYMENT')
+            ]);
+            
+            let updatedCount = 0;
+            
+            // Auto-match and update Airtime
+            for (const product of PRODUCT_CATALOG.airtime) {
+                if (!product.operatorId || product.operatorId < 1) {
+                    const matched = operators.find(op => 
+                        matchOperatorName(op.name, product.network) && 
+                        (op.fx?.rate || op.denominationType === 'FIXED')
+                    );
+                    if (matched) {
+                        product.operatorId = matched.operatorId;
+                        updatedCount++;
+                        console.log(`  ✓ Auto-configured ${product.network} Airtime: ${matched.operatorId}`);
+                    }
+                }
+            }
+            
+            // Auto-match and update Data
+            for (const product of PRODUCT_CATALOG.data) {
+                if (!product.operatorId || product.operatorId < 1) {
+                    const matched = operators.find(op => {
+                        const nameMatch = matchOperatorName(op.name, product.network);
+                        return nameMatch && (op.fx?.rate || op.denominationType === 'FIXED' || op.bundle || op.data);
+                    });
+                    if (matched) {
+                        product.operatorId = matched.operatorId;
+                        updatedCount++;
+                    }
+                }
+            }
+            
+            // Auto-match and update Cable TV
+            for (const product of PRODUCT_CATALOG.cableTV) {
+                if (!product.operatorId || product.operatorId < 1) {
+                    const matched = cableTVBillers.find(biller => 
+                        matchOperatorName(biller.billerName, product.provider) ||
+                        matchOperatorName(biller.billerName, product.name)
+                    );
+                    if (matched) {
+                        product.operatorId = matched.billerId;
+                        updatedCount++;
+                    }
+                }
+            }
+            
+            // Auto-match and update Electricity
+            for (const product of PRODUCT_CATALOG.electricity) {
+                if (!product.operatorId || product.operatorId < 1) {
+                    const matched = electricityBillers.find(biller => {
+                        return matchOperatorName(biller.billerName, product.disco) ||
+                               matchOperatorName(biller.billerName, product.discoName);
+                    });
+                    if (matched) {
+                        product.operatorId = matched.billerId;
+                        updatedCount++;
+                    }
+                }
+            }
+            
+            if (updatedCount > 0) {
+                console.log(`\n  ✅ Automatically configured ${updatedCount} operator IDs!`);
+                console.log('  💾 Note: These are in-memory only. For persistence, update server.js or use a database.');
+            } else {
+                console.warn('\n  ⚠ Could not auto-match operator IDs. You may need to configure them manually.');
+                console.warn(`  Visit http://localhost:${PORT}/api/sync-operator-ids for detailed information.`);
+            }
+            
+        } catch (error) {
+            console.error('\n  ✗ Automatic sync failed:', error.message);
+            console.warn('  You can still manually sync by visiting:');
+            console.warn(`  http://localhost:${PORT}/api/sync-operator-ids`);
+        }
+    } else if (unconfiguredProducts.length > 0) {
+        console.warn('⚠ Products need configuration, but skipping auto-sync due to missing API credentials.');
+    } else {
+        console.log('✓ All products are configured with operator IDs');
+    }
+    
+    console.log('\n--- Available Endpoints ---');
+    console.log('\nAuthentication:');
+    console.log(`  GET  http://localhost:${PORT}/api/auth/info`);
+    console.log(`  POST http://localhost:${PORT}/api/auth/register`);
+    console.log(`  POST http://localhost:${PORT}/api/auth/verify-token`);
+    console.log('\nProducts & Configuration:');
+    console.log(`  GET  http://localhost:${PORT}/api/get-data-plans`);
+    console.log(`  GET  http://localhost:${PORT}/api/sync-operator-ids`);
+    console.log(`  POST http://localhost:${PORT}/api/update-operator-ids`);
+    console.log('\nTransactions:');
+    console.log(`  POST http://localhost:${PORT}/api/process-transaction`);
+    console.log(`  POST http://localhost:${PORT}/api/check-status`);
+    console.log('\n========================================');
+    console.log('Server ready to accept requests!');
+    console.log('\nFor authentication help, visit:');
+    console.log(`http://localhost:${PORT}/api/auth/info`);
+    console.log('Or see AUTH_GUIDE.md for complete documentation');
+    console.log('========================================\n');
 });
 
 
