@@ -1363,6 +1363,7 @@ app.post('/api/process-transaction', async (req, res) => {
         const reloadlyResponse = await axios.post(RELOADLY_TOPUP_URL, {
             operatorId: operatorId,         // The specific operatorId for the product
             amount: reloadlyAmount,         // Amount without markup (your cost)
+            useLocalAmount: true,           // Use local currency (NGN) instead of USD
             recipientPhone: {
                 countryCode: "NG",          // Hardcode for Nigeria
                 number: formattedPhone.substring(4) // Send number without the +234
