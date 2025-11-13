@@ -1714,6 +1714,29 @@ function validateEnvironment() {
     return { missing, present, isValid: missing.length === 0 };
 }
 
+/**
+ * @route   GET /api/diagnostic
+ * @desc    Check backend configuration and version
+ * @access  Public
+ */
+app.get('/api/diagnostic', async (req, res) => {
+    res.json({
+        backend: 'Vendifi Backend',
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        config: {
+            useLocalAmount: true,  // Should be true for NGN accounts
+            operatorIds: {
+                airtel: 342,
+                nineMobile: 340
+            },
+            hasReloadlyCredentials: !!(RELOADLY_CLIENT_ID && RELOADLY_CLIENT_SECRET),
+            hasFlutterwaveKey: !!FLUTTERWAVE_SECRET_KEY
+        },
+        status: 'running'
+    });
+});
+
 // --- START SERVER ---
 app.listen(PORT, async () => {
     console.log('\n========================================');
