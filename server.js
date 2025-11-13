@@ -1360,15 +1360,19 @@ app.post('/api/process-transaction', async (req, res) => {
         };
 
         // This is now a SINGLE, unified call for both Airtime and Data
+        // Convert phone number to integer (Reloadly requires number type, not string)
+        const phoneNumberOnly = formattedPhone.substring(4); // Remove +234
+        const phoneAsNumber = parseInt(phoneNumberOnly, 10); // Convert to integer
+        
         const reloadlyResponse = await axios.post(RELOADLY_TOPUP_URL, {
             operatorId: operatorId,         // The specific operatorId for the product
             amount: reloadlyAmount,         // Amount without markup (your cost)
-            useLocalAmount: true,           // Use local currency (NGN) instead of USD
+            useLocalAmount: false,          // Use USD (Reloadly's default currency)
+            customIdentifier: reference,    // Link to Flutterwave reference
             recipientPhone: {
-                countryCode: "NG",          // Hardcode for Nigeria
-                number: formattedPhone.substring(4) // Send number without the +234
-            },
-            customIdentifier: reference // Link to Flutterwave reference
+                countryCode: "NG",          // Country code for Nigeria
+                number: phoneAsNumber       // Phone number as integer (e.g., 8012345678)
+            }
         }, reloadlyRequestConfig);
         
         console.log('Reloadly Response:', reloadlyResponse.data);
