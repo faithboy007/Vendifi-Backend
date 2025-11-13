@@ -1364,16 +1364,25 @@ app.post('/api/process-transaction', async (req, res) => {
         const phoneNumberOnly = formattedPhone.substring(4); // Remove +234
         const phoneAsNumber = parseInt(phoneNumberOnly, 10); // Convert to integer
         
-        const reloadlyResponse = await axios.post(RELOADLY_TOPUP_URL, {
+        const reloadlyPayload = {
             operatorId: operatorId,         // The specific operatorId for the product
-            amount: reloadlyAmount,         // Amount without markup (your cost)
-            useLocalAmount: false,          // Use USD (Reloadly's default currency)
+            amount: reloadlyAmount,         // Amount in NGN (Nigerian Naira)
+            useLocalAmount: true,           // Use local currency (NGN) - account balance is in NGN
             customIdentifier: reference,    // Link to Flutterwave reference
             recipientPhone: {
                 countryCode: "NG",          // Country code for Nigeria
                 number: phoneAsNumber       // Phone number as integer (e.g., 8012345678)
             }
-        }, reloadlyRequestConfig);
+        };
+        
+        console.log('🚀 Sending Reloadly topup request:');
+        console.log('   URL:', RELOADLY_TOPUP_URL);
+        console.log('   Payload:', JSON.stringify(reloadlyPayload, null, 2));
+        console.log('   Phone (original):', meta.phone);
+        console.log('   Phone (formatted):', formattedPhone);
+        console.log('   Phone (as number):', phoneAsNumber);
+        
+        const reloadlyResponse = await axios.post(RELOADLY_TOPUP_URL, reloadlyPayload, reloadlyRequestConfig);
         
         console.log('Reloadly Response:', reloadlyResponse.data);
 
@@ -1391,8 +1400,29 @@ app.post('/api/process-transaction', async (req, res) => {
         }
 
     } catch (error) {
-        console.error("Server Error:", error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: "An internal server error occurred." });
+        console.error("🚨 ERROR in /api/process-transaction:");
+        
+        if (error.response) {
+            // Reloadly API returned an error
+            console.error("   Reloadly API Error:");
+            console.error("   Status:", error.response.status);
+            console.error("   Data:", JSON.stringify(error.response.data, null, 2));
+            
+            return res.status(500).json({ 
+                success: false, 
+                message: error.response.data.message || "Airtime delivery failed. Please contact support.",
+                details: error.response.data
+            });
+        } else {
+            // Network error or other issue
+            console.error("   Error:", error.message);
+            console.error("   Stack:", error.stack);
+            
+            return res.status(500).json({ 
+                success: false, 
+                message: "An internal server error occurred. Please try again." 
+            });
+        }
     }
 });
 
