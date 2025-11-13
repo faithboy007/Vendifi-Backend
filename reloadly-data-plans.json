@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-11-13T08:22:38.432Z",
+  "networks": {
+    "AIRTEL": {
+      "operatorId": 342,
+      "name": "Airtel Nigeria",
+      "denominationType": "RANGE",
+      "fixedAmounts": [],
+      "minAmount": 50,
+      "maxAmount": 199999
+    },
+    "9MOBILE": {
+      "operatorId": 340,
+      "name": "9Mobile (Etisalat) Nigeria",
+      "denominationType": "RANGE",
+      "fixedAmounts": [],
+      "minAmount": 50,
+      "maxAmount": 50000
+    }
+  },
+  "recommendations": []
+}

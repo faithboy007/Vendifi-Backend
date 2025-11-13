@@ -294,30 +294,37 @@ function matchOperatorName(operatorName, searchName) {
  */
 let PRODUCT_CATALOG = {
     airtime: [
-        {
-            network: 'MTN',
-            name: 'MTN Airtime',
-            operatorId: 340, // Get from Reloadly dashboard
-            service: 'airtime'
-        },
-        {
-            network: 'GLO',
-            name: 'GLO Airtime',
-            operatorId: 341, // Replace with your actual Reloadly operatorId
-            service: 'airtime'
-        },
+        // NOTE: Only Airtel and 9Mobile are available on Reloadly for Nigeria
+        // MTN and GLO are NOT supported by Reloadly
+        // To support MTN and GLO, you need to integrate VTPass or another provider
         {
             network: 'AIRTEL',
             name: 'Airtel Airtime',
-            operatorId: 342, // Replace with your actual Reloadly operatorId
+            operatorId: 342, // Correct Reloadly ID for Airtel Nigeria
             service: 'airtime'
         },
         {
             network: '9MOBILE',
             name: '9mobile Airtime',
-            operatorId: 343, // Replace with your actual Reloadly operatorId
+            operatorId: 340, // Correct Reloadly ID for 9Mobile (Etisalat) Nigeria
             service: 'airtime'
         }
+        // MTN and GLO removed - not available on Reloadly
+        // Uncomment below and add proper IDs when VTPass is integrated
+        // {
+        //     network: 'MTN',
+        //     name: 'MTN Airtime',
+        //     operatorId: null, // VTPass service ID
+        //     service: 'airtime',
+        //     provider: 'vtpass'
+        // },
+        // {
+        //     network: 'GLO',
+        //     name: 'GLO Airtime',
+        //     operatorId: null, // VTPass service ID
+        //     service: 'airtime',
+        //     provider: 'vtpass'
+        // }
     ],
     data: [
         // MTN Data Plans
@@ -332,6 +339,15 @@ let PRODUCT_CATALOG = {
             validity: '1 day'
         },
         {
+            planId: 'MTN-500MB-MONTHLY',
+            network: 'MTN',
+            name: 'MTN 500MB Monthly',
+            price: 500, // Price in NGN
+            operatorId: 6461, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: 'MTN-1GB-WEEKLY',
             network: 'MTN',
             name: 'MTN 1GB Weekly',
@@ -341,11 +357,29 @@ let PRODUCT_CATALOG = {
             validity: '7 days'
         },
         {
+            planId: 'MTN-1.5GB-MONTHLY',
+            network: 'MTN',
+            name: 'MTN 1.5GB Monthly',
+            price: 1200, // Price in NGN
+            operatorId: 6471, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: 'MTN-2GB-MONTHLY',
             network: 'MTN',
             name: 'MTN 2GB Monthly',
             price: 1500, // Price in NGN
             operatorId: 648, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
+            planId: 'MTN-3.2GB-MONTHLY',
+            network: 'MTN',
+            name: 'MTN 3.2GB Monthly',
+            price: 2000, // Price in NGN
+            operatorId: 6481, // Get from Reloadly dashboard
             service: 'data',
             validity: '30 days'
         },
@@ -378,6 +412,15 @@ let PRODUCT_CATALOG = {
         },
         // Airtel Data Plans
         {
+            planId: 'AIRTEL-500MB-MONTHLY',
+            network: 'AIRTEL',
+            name: 'Airtel 500MB Monthly',
+            price: 500, // Price in NGN
+            operatorId: 6511, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: 'AIRTEL-1GB-DAILY',
             network: 'AIRTEL',
             name: 'Airtel 1GB Daily',
@@ -396,11 +439,29 @@ let PRODUCT_CATALOG = {
             validity: '7 days'
         },
         {
+            planId: 'AIRTEL-1.5GB-MONTHLY',
+            network: 'AIRTEL',
+            name: 'Airtel 1.5GB Monthly',
+            price: 1200, // Price in NGN
+            operatorId: 6531, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: 'AIRTEL-2GB-MONTHLY',
             network: 'AIRTEL',
             name: 'Airtel 2GB Monthly',
             price: 1500, // Price in NGN
             operatorId: 654, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
+            planId: 'AIRTEL-3.2GB-MONTHLY',
+            network: 'AIRTEL',
+            name: 'Airtel 3.2GB Monthly',
+            price: 2000, // Price in NGN
+            operatorId: 6541, // Get from Reloadly dashboard
             service: 'data',
             validity: '30 days'
         },
@@ -442,6 +503,15 @@ let PRODUCT_CATALOG = {
         },
         // GLO Data Plans
         {
+            planId: 'GLO-500MB-MONTHLY',
+            network: 'GLO',
+            name: 'GLO 500MB Monthly',
+            price: 500, // Price in NGN
+            operatorId: 6581, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: 'GLO-1GB-DAILY',
             network: 'GLO',
             name: 'GLO 1GB Daily',
@@ -449,6 +519,15 @@ let PRODUCT_CATALOG = {
             operatorId: 659, // Get from Reloadly dashboard
             service: 'data',
             validity: '1 day'
+        },
+        {
+            planId: 'GLO-1.5GB-MONTHLY',
+            network: 'GLO',
+            name: 'GLO 1.5GB Monthly',
+            price: 1000, // Price in NGN
+            operatorId: 6591, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
         },
         {
             planId: 'GLO-2GB-DAILY',
@@ -467,6 +546,15 @@ let PRODUCT_CATALOG = {
             operatorId: 661, // Get from Reloadly dashboard
             service: 'data',
             validity: '7 days'
+        },
+        {
+            planId: 'GLO-3.2GB-MONTHLY',
+            network: 'GLO',
+            name: 'GLO 3.2GB Monthly',
+            price: 1600, // Price in NGN
+            operatorId: 6611, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
         },
         {
             planId: 'GLO-2.6GB-MONTHLY',
@@ -506,6 +594,15 @@ let PRODUCT_CATALOG = {
         },
         // 9mobile Data Plans
         {
+            planId: '9MOBILE-500MB-MONTHLY',
+            network: '9MOBILE',
+            name: '9mobile 500MB Monthly',
+            price: 500, // Price in NGN
+            operatorId: 6651, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
             planId: '9MOBILE-1GB-DAILY',
             network: '9MOBILE',
             name: '9mobile 1GB Daily',
@@ -513,6 +610,15 @@ let PRODUCT_CATALOG = {
             operatorId: 666, // Get from Reloadly dashboard
             service: 'data',
             validity: '1 day'
+        },
+        {
+            planId: '9MOBILE-1.5GB-MONTHLY',
+            network: '9MOBILE',
+            name: '9mobile 1.5GB Monthly',
+            price: 1000, // Price in NGN
+            operatorId: 6661, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
         },
         {
             planId: '9MOBILE-7GB-WEEKLY',
@@ -529,6 +635,15 @@ let PRODUCT_CATALOG = {
             name: '9mobile 2GB Monthly',
             price: 1000, // Price in NGN
             operatorId: 668, // Get from Reloadly dashboard
+            service: 'data',
+            validity: '30 days'
+        },
+        {
+            planId: '9MOBILE-3.2GB-MONTHLY',
+            network: '9MOBILE',
+            name: '9mobile 3.2GB Monthly',
+            price: 1500, // Price in NGN
+            operatorId: 6681, // Get from Reloadly dashboard
             service: 'data',
             validity: '30 days'
         },

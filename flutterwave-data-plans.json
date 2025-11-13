@@ -1,0 +1,17 @@
+{
+  "MTN": {
+    "network": "MTN",
+    "plans": [],
+    "matchedPlans": []
+  },
+  "GLO": {
+    "network": "GLO",
+    "plans": [],
+    "matchedPlans": []
+  },
+  "9MOBILE": {
+    "network": "9MOBILE",
+    "plans": [],
+    "matchedPlans": []
+  }
+}
